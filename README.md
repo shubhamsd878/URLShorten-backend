@@ -29,3 +29,8 @@ npm install
 ```bash
 npm run dev
 ```
+
+
+post - /:url -> return shortended url, save redirectUrl & shortenUrl
+get - /:url -> return redirected url
+analytics/url -> return url analytics {hitCount, all data}

@@ -2,9 +2,11 @@ import express from "express";
 import { route, successRoute } from "./routes/index.js";
 import ServerStatusModel from "./models/ServerStatusModel.js";
 import DatabaseSyncModel from "./models/DatabaseSyncModel.js";
+import ShortUrlModel from "./models/ShortUrlModel.js";
 
 const serverStatusModel = new ServerStatusModel();
 const databaseSyncModel = new DatabaseSyncModel();
+const shortUrlModelModel = new ShortUrlModel();
 
 export default function createRouter() {
     const router = express.Router();
@@ -62,6 +64,32 @@ export default function createRouter() {
         route(async (req, res) => {
             const response = await databaseSyncModel.syncAllTables(
                 req.body || {},
+            );
+            return res.send(successRoute(response));
+        }),
+    );
+
+    // Create Short URL Route
+    router.post(
+        "/:id",
+        route(
+            async (req, res) => {
+                const response = await shortUrlModelModel.createShortId(
+                    req.params.id,
+                    req.body,
+                );
+                return res.send(successRoute(response));
+            },
+            { requiredFields: ["redirectUrl"] },
+        ),
+    );
+
+    // Get Short URL Route
+    router.get(
+        "/:shortId",
+        route(async (req, res) => {
+            const response = await shortUrlModelModel.getShortUrl(
+                req.params.shortId,
             );
             return res.send(successRoute(response));
         }),

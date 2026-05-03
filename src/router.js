@@ -71,16 +71,16 @@ export default function createRouter() {
 
     // Create Short URL Route
     router.post(
-        "/:id",
+        "/shortid",
         route(
             async (req, res) => {
                 const response = await shortUrlModelModel.createShortId(
-                    req.params.id,
+                    req.query.id,
                     req.body,
                 );
                 return res.send(successRoute(response));
             },
-            { requiredFields: ["redirectUrl"] },
+            // { requiredFields: ["redirectUrl"] },
         ),
     );
 
@@ -88,8 +88,33 @@ export default function createRouter() {
     router.get(
         "/:shortId",
         route(async (req, res) => {
+            const visitData = {
+                userAgent: req.get("user-agent"),
+                ipAddress: req.ip,
+                referrer: req.get("referer"),
+            };
             const response = await shortUrlModelModel.getShortUrl(
                 req.params.shortId,
+                visitData,
+            );
+            console.log(
+                "🚀 ~ createRouter ~ req.query:",
+                req.query,
+                req.query?.redirectFlag == false,
+            );
+            if (req.query?.redirectFlag == "false" || !response?.redirectUrl) {
+                return res.send(successRoute(response));
+            }
+            return res.redirect(response?.redirectUrl);
+        }),
+    );
+
+    // Get Visit History Route
+    router.get(
+        "/analytics/:shortId",
+        route(async (req, res) => {
+            const response = await shortUrlModelModel.getVisitHistory(
+                req.params?.shortId,
             );
             return res.send(successRoute(response));
         }),

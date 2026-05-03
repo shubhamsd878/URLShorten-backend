@@ -73,11 +73,12 @@ export default class ShortUrlModel extends BaseModel {
     }
 
     /**
-     * Get a short URL by its short ID
+     * Get a short URL by its short ID and record the visit
      * @param {string} shortId - The short URL identifier
+     * @param {Object} visitData - Optional visit metadata (userAgent, ipAddress, etc.)
      * @returns {Promise<Object>} Short URL record
      */
-    async getShortUrl(shortId) {
+    async getShortUrl(shortId, visitData = {}) {
         const record = await this.shortUrlModel.findOne({
             where: { shortUrl: shortId },
         });
@@ -86,6 +87,78 @@ export default class ShortUrlModel extends BaseModel {
             throw new ApplicationError(`Short URL not found: ${shortId}`, 404);
         }
 
+        // Record visit
+        await this._recordVisit(shortId, visitData);
+
         return record;
+    }
+
+    /**
+     * Record a visit to a short URL
+     * @param {string} shortId - The short URL identifier
+     * @param {Object} visitData - Visit metadata (userAgent, ipAddress, referrer, etc.)
+     * @returns {Promise<Object>} Updated record with new visit
+     */
+    async _recordVisit(shortId, visitData = {}) {
+        const record = await this.shortUrlModel.findOne({
+            where: { shortUrl: shortId },
+        });
+
+        if (!record) {
+            throw new ApplicationError(`Short URL not found: ${shortId}`, 404);
+        }
+
+        const visitEntry = {
+            timestamp: new Date().toISOString(),
+            userAgent: visitData.userAgent || null,
+            ipAddress: visitData.ipAddress || null,
+            referrer: visitData.referrer || null,
+            ...visitData,
+        };
+
+        const visitHistory = JSON.parse(record.visitHistory) || [];
+        const updatedHistory = Array.isArray(visitHistory)
+            ? [...visitHistory]
+            : [];
+        updatedHistory.push(visitEntry);
+
+        await this.shortUrlModel.update(
+            { visitHistory: JSON.stringify(updatedHistory) },
+            { where: { shortUrl: shortId } },
+        );
+
+        console.log(
+            "📊 Visit recorded for:",
+            shortId,
+            "Total visits:",
+            updatedHistory.length,
+        );
+
+        return record;
+    }
+
+    /**
+     * Get visit history for a short URL
+     * @param {string} shortId - The short URL identifier
+     * @returns {Promise<Object>} Visit history with stats
+     */
+    async getVisitHistory(shortId) {
+        const record = await this.shortUrlModel.findOne({
+            where: { shortUrl: shortId },
+            raw: true,
+        });
+        console.log("🚀 ~ ShortUrlModel ~ getVisitHistory ~ record:", record);
+
+        if (!record) {
+            throw new ApplicationError(`Short URL not found: ${shortId}`, 404);
+        }
+
+        const visits = JSON.parse(record.visitHistory) || [];
+        return {
+            shortUrl: record.shortUrl,
+            redirectUrl: record.redirectUrl,
+            totalVisits: visits.length,
+            visits: visits,
+        };
     }
 }

@@ -3,6 +3,7 @@ import { route, successRoute } from "./routes/index.js";
 import ServerStatusModel from "./models/ServerStatusModel.js";
 import DatabaseSyncModel from "./models/DatabaseSyncModel.js";
 import ShortUrlModel from "./models/ShortUrlModel.js";
+import { ApplicationError } from "./lib/errors.js";
 
 const serverStatusModel = new ServerStatusModel();
 const databaseSyncModel = new DatabaseSyncModel();
@@ -15,10 +16,6 @@ export default function createRouter() {
         "/status",
         route(async (req, res) => {
             try {
-                console.log(
-                    "🚀 ~ serverStatusModel:",
-                    serverStatusModel?.getServerStatus,
-                );
                 const response = await serverStatusModel.getServerStatus();
                 console.log("🚀 ~ createRouter ~ response:", response);
                 return res.send(successRoute(response));
@@ -119,6 +116,49 @@ export default function createRouter() {
             return res.send(successRoute(response));
         }),
     );
+
+    router.use((err, req, res, next) => {
+        // Handle request aborted errors specifically
+        if (err.code === "ECONNABORTED" || err.type === "request.aborted") {
+            console.warn("Request aborted", {
+                error: err.message,
+                code: err.code,
+                type: err.type,
+                expected: err.expected,
+                length: err.length,
+                received: err.received,
+                url: req.url,
+                method: req.method,
+            });
+
+            // Don't send response if headers already sent or connection closed
+            if (!res.headersSent && !req.destroyed) {
+                res.status(499).json({
+                    message: "Request aborted by client",
+                    statusCode: 499,
+                    error: "CLIENT_CLOSED_REQUEST",
+                });
+            }
+            return;
+        }
+
+        console.error("ERROR in Routes", err);
+
+        if (err instanceof ApplicationError) {
+            res.status(err.statusCode).send({
+                message: err.message,
+                statusCode: err.statusCode,
+                data: err?.data || err || {},
+            });
+            return;
+        }
+
+        console.error("Uncaught error", err);
+        res.status(500).send({
+            message: "Uncaught error",
+            statusCode: 500,
+        }); // uncaught exception
+    });
 
     return router;
 }
